@@ -5,6 +5,7 @@ namespace Mero\Monolog\Handler\Factory;
 use Mero\Monolog\Exception\ParameterNotFoundException;
 use Monolog\Handler\RotatingFileHandler;
 use Monolog\Logger;
+use yii;
 
 class RotatingFileFactory extends AbstractFactory
 {
@@ -15,19 +16,19 @@ class RotatingFileFactory extends AbstractFactory
     {
         $this->config = array_merge(
             [
-                'level' => Logger::DEBUG,
-                'bubble' => true,
-                'max_files' => 0,
+                'level'           => Logger::DEBUG,
+                'bubble'          => true,
+                'max_files'       => 0,
                 'file_permission' => null,
                 'filename_format' => '{filename}-{date}',
-                'date_format' => 'Y-m-d',
+                'date_format'     => 'Y-m-d',
             ],
             $this->config
         );
 
         $parametersRequired = ['path'];
         foreach ($parametersRequired as &$parameter) {
-            if (!isset($this->config[$parameter])) {
+            if (! isset($this->config[$parameter])) {
                 throw new ParameterNotFoundException(
                     sprintf("Parameter '%s' not found in handler configuration", $parameter)
                 );

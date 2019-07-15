@@ -1,14 +1,20 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace Mero\Monolog;
 
+use InvalidArgumentException;
 use Mero\Monolog\Exception\HandlerNotFoundException;
 use Mero\Monolog\Exception\LoggerNotFoundException;
+use Mero\Monolog\Exception\ParameterNotFoundException;
 use Mero\Monolog\Handler\Strategy;
 use Monolog\Formatter\FormatterInterface;
 use Monolog\Handler\AbstractHandler;
-use yii\base\Component;
 use Monolog\Logger;
+use yii;
+use yii\base\Component;
+use yii\base\InvalidConfigException;
 
 /**
  * MonologComponent is an component for the Monolog library.
@@ -18,37 +24,110 @@ use Monolog\Logger;
 class MonologComponent extends Component
 {
     /**
-     * @var array Logger channels
+     * Default name for channel.
+     *
+     * @var string
      */
-    protected $channels;
+    protected $defaultChannelName = 'main';
 
     /**
-     * @var Strategy Handler strategy to create factory
+     * Logger channels.
+     *
+     * @var array
+     */
+    protected $channels = [];
+
+    /**
+     * Handler strategy to create factory.
+     *
+     * @var Strategy
      */
     protected $strategy;
 
-    public function __construct(array $channels = [], array $config = [])
+    /**
+     * Strategy config.
+     *
+     * @var array
+     */
+    protected $strategyConfig = ['class' => Strategy::class];
+
+    /**
+     * Set default channel name.
+     *
+     * @param string $value New value.
+     *
+     * @return MonologComponent
+     */
+    public function setDefaultChannelName(string $value): self
     {
-        if (!isset($channels['main'])) {
-            $channels['main'] = [
-                'handler' => [
-                    [
-                        'type' => 'rotating_file',
-                        'path' => '@app/runtime/logs/log_'.date('Y-m-d').'.log',
-                    ],
-                ],
-            ];
-        }
-        $this->channels = $channels;
-        $this->strategy = new Strategy();
-        parent::__construct($config);
+        $this->defaultChannelName = $value;
+
+        return $this;
     }
 
     /**
-     * {@inheritdoc}
+     * Return default channel name.
+     *
+     * @return string
+     *
+     * @throws InvalidConfigException If channel name is empty.
+     */
+    public function getDefaultChannelName(): string
+    {
+        if (empty($this->defaultChannelName)) {
+            throw new InvalidConfigException('Default channel name object can not be null');
+        }
+
+        return $this->defaultChannelName;
+    }
+
+    /**
+     * Method set strategy config.
+     *
+     * @param array $value New config value.
+     *
+     * @return static
+     */
+    public function setStrategyConfig(array $value): self
+    {
+        $this->strategyConfig = array_merge($this->strategyConfig, $value);
+
+        return $this;
+    }
+
+    /**
+     * Method set logger channels.
+     *
+     * @param array $value new channels value.
+     *
+     * @return static
+     */
+    public function setChannels(array $value): self
+    {
+        $this->channels = $value;
+
+        return $this;
+    }
+
+    /**
+     * Method return strategy config.
+     *
+     * @return array
+     */
+    protected function getStrategyConfig(): array
+    {
+        return $this->strategyConfig;
+    }
+
+    /**
+     * @throws HandlerNotFoundException
+     * @throws ParameterNotFoundException
+     * @throws InvalidConfigException
      */
     public function init()
     {
+        $this->strategy = Yii::createObject($this->getStrategyConfig());
+
         foreach ($this->channels as $name => $config) {
             $this->createChannel($name, $config);
         }
@@ -61,23 +140,24 @@ class MonologComponent extends Component
      * @param string $name   Logger channel name
      * @param array  $config Logger channel configuration
      *
-     * @throws \InvalidArgumentException When the channel already exists
+     * @return void
+     *
+     * @throws InvalidArgumentException When the channel already exists
      * @throws HandlerNotFoundException  When a handler configuration is invalid
+     * @throws ParameterNotFoundException
      */
-    public function createChannel($name, array $config)
+    public function createChannel($name, array $config): void
     {
-        $handlers = [];
+        $handlers   = [];
         $processors = [];
-        if (!empty($config['handler']) && is_array($config['handler'])) {
+        if (! empty($config['handler']) && is_array($config['handler'])) {
             foreach ($config['handler'] as $handler) {
-                if (!is_array($handler) && !$handler instanceof AbstractHandler) {
+                if (! is_array($handler) && ! $handler instanceof AbstractHandler) {
                     throw new HandlerNotFoundException();
                 }
                 if (is_array($handler)) {
                     $handlerObject = $this->createHandlerInstance($handler);
-                    if (array_key_exists('formatter', $handler) &&
-                        $handler['formatter'] instanceof FormatterInterface
-                    ) {
+                    if (array_key_exists('formatter', $handler) && $handler['formatter'] instanceof FormatterInterface) {
                         $handlerObject->setFormatter($handler['formatter']);
                     }
                 } else {
@@ -86,12 +166,10 @@ class MonologComponent extends Component
                 $handlers[] = $handlerObject;
             }
         }
-        if (!empty($config['processor']) && is_array($config['processor'])) {
+        if (! empty($config['processor']) && is_array($config['processor'])) {
             $processors = $config['processor'];
         }
         $this->openChannel($name, $handlers, $processors);
-
-        return;
     }
 
     /**
@@ -100,30 +178,30 @@ class MonologComponent extends Component
      * @param string $name       Logger channel name
      * @param array  $handlers   Handlers collection
      * @param array  $processors Processors collection
+     *
+     * @return void
      */
-    protected function openChannel($name, array $handlers, array $processors)
+    protected function openChannel($name, array $handlers, array $processors): void
     {
-        if (isset($this->channels[$name]) && $this->channels[$name] instanceof Logger) {
-            throw new \InvalidArgumentException("Channel '{$name}' already exists");
+        if ($this->hasLogger($name)) {
+            throw new InvalidArgumentException(sprintf('Channel \'%s\' already exists', $name));
         }
 
         $this->channels[$name] = new Logger($name, $handlers, $processors);
-
-        return;
     }
 
     /**
      * Close a open logger channel.
      *
      * @param string $name Logger channel name
+     *
+     * @return void
      */
-    public function closeChannel($name)
+    public function closeChannel($name): void
     {
         if (isset($this->channels[$name])) {
             unset($this->channels[$name]);
         }
-
-        return;
     }
 
     /**
@@ -132,8 +210,10 @@ class MonologComponent extends Component
      * @param array $config Configuration parameters
      *
      * @return AbstractHandler
+     *
+     * @throws ParameterNotFoundException
      */
-    protected function createHandlerInstance(array $config)
+    protected function createHandlerInstance(array $config): AbstractHandler
     {
         $factory = $this->strategy->createFactory($config);
 
@@ -147,7 +227,7 @@ class MonologComponent extends Component
      *
      * @return bool
      */
-    public function hasLogger($name)
+    public function hasLogger($name): bool
     {
         return isset($this->channels[$name]) && ($this->channels[$name] instanceof Logger);
     }
@@ -160,11 +240,16 @@ class MonologComponent extends Component
      * @return Logger Logger object
      *
      * @throws LoggerNotFoundException
+     * @throws InvalidConfigException
      */
-    public function getLogger($name = 'main')
+    public function getLogger($name = null): Logger
     {
-        if (!$this->hasLogger($name)) {
-            throw new LoggerNotFoundException(sprintf("Logger instance '%s' not found", $name));
+        if (null === $name) {
+            $name = $this->getDefaultChannelName();
+        }
+
+        if (! $this->hasLogger($name)) {
+            throw new LoggerNotFoundException(sprintf('Logger instance \'%s\' not found', $name));
         }
 
         return $this->channels[$name];

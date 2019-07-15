@@ -5,66 +5,28 @@ namespace Mero\Monolog\Handler;
 use Mero\Monolog\Exception\HandlerNotFoundException;
 use Mero\Monolog\Exception\ParameterNotFoundException;
 use Mero\Monolog\Handler\Factory\AbstractFactory;
-use Mero\Monolog\Handler\Factory\BrowserConsoleFactory;
-use Mero\Monolog\Handler\Factory\ChromePHPFactory;
-use Mero\Monolog\Handler\Factory\FirePHPFactory;
-use Mero\Monolog\Handler\Factory\GelfFactory;
-use Mero\Monolog\Handler\Factory\HipChatFactory;
-use Mero\Monolog\Handler\Factory\RotatingFileFactory;
-use Mero\Monolog\Handler\Factory\SlackFactory;
-use Mero\Monolog\Handler\Factory\SocketFactory;
-use Mero\Monolog\Handler\Factory\StreamFactory;
-use Mero\Monolog\Handler\Factory\SyslogFactory;
-use Mero\Monolog\Handler\Factory\SyslogUdpFactory;
-use Mero\Monolog\Handler\Factory\YiiDbFactory;
-use Mero\Monolog\Handler\Factory\YiiMongoFactory;
 use Monolog\Logger;
+use yii\base\BaseObject;
 
-class Strategy
+class Strategy extends BaseObject
 {
     /**
      * @var array Handler factory collection
      */
-    protected $factories;
+    protected $factories = [];
 
-    public function __construct()
+    /**
+     * Method set handler factory collection.
+     *
+     * @param array $value new value.
+     *
+     * @return static
+     */
+    public function setFactories(array $value): self
     {
-        $this->factories = [
-            'stream' => StreamFactory::className(),
-            'firephp' => FirePHPFactory::className(),
-            'browser_console' => BrowserConsoleFactory::className(),
-            'gelf' => GelfFactory::className(),
-            'chromephp' => ChromePHPFactory::className(),
-            'rotating_file' => RotatingFileFactory::className(),
-            'yii_db' => YiiDbFactory::className(),
-            'yii_mongo' => YiiMongoFactory::className(),
-            'hipchat' => HipChatFactory::className(),
-            'slack' => SlackFactory::className(),
-            'elasticsearch' => '',
-            'fingers_crossed' => '',
-            'filter' => '',
-            'buffer' => '',
-            'deduplication' => '',
-            'group' => '',
-            'whatfailuregroup' => '',
-            'syslog' => SyslogFactory::className(),
-            'syslogudp' => SyslogUdpFactory::className(),
-            'swift_mailer' => '',
-            'socket' => SocketFactory::className(),
-            'pushover' => '',
-            'raven' => '',
-            'newrelic' => '',
-            'cube' => '',
-            'amqp' => '',
-            'error_log' => '',
-            'null' => '',
-            'test' => '',
-            'debug' => '',
-            'loggly' => '',
-            'logentries' => '',
-            'flowdock' => '',
-            'rollbar' => '',
-        ];
+        $this->factories = $value;
+
+        return $this;
     }
 
     /**
@@ -79,13 +41,13 @@ class Strategy
      */
     protected function hasFactory($type)
     {
-        if (!array_key_exists($type, $this->factories)) {
+        if (! array_key_exists($type, $this->factories)) {
             throw new HandlerNotFoundException(
                 sprintf("Type '%s' not found in handler factory", $type)
             );
         }
         $factoryClass = &$this->factories[$type];
-        if (!class_exists($factoryClass)) {
+        if (! class_exists($factoryClass)) {
             throw new \BadMethodCallException(
                 sprintf("Type '%s' not implemented", $type)
             );
@@ -105,7 +67,7 @@ class Strategy
      */
     public function createFactory(array $config)
     {
-        if (!array_key_exists('type', $config)) {
+        if (! array_key_exists('type', $config)) {
             throw new ParameterNotFoundException(
                 sprintf("Parameter '%s' not found in handler configuration", 'type')
             );
